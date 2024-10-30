@@ -1,6 +1,6 @@
 ## 리팩터링: 첫 번째 예시
 
-```
+```kotlin
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -80,7 +80,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 
 - 리팩터링할 코드 영역을 꼼꼼하게 검사해줄 테스트 코드들부터 마련해야 한다.
 
-    ```
+    ```kotlin
     import org.junit.jupiter.api.Assertions.*
     import org.junit.jupiter.api.Test
     import org.junit.jupiter.api.assertThrows
@@ -183,7 +183,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 
 1. **전체 동작을 각각의 부분으로 나눌 수 있는 지점을 찾는다.**
 
-    ```
+    ```kotlin
     when (play.type) {
         "tragedy" -> {
             thisAmount = 40000
@@ -204,7 +204,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 
 2. **함수 추출하기, 코드가 하는 일을 설명하는 이름을 지어준다.**
 
-    ```
+    ```kotlin
     private fun amountFor(
         play: Play,
         thisAmount: Int,
@@ -216,7 +216,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 
 3. **`perf`와 `play`는 추출한 새 함수에서도 필요하지만 값이 변경하지 않기 때문에 매개변수로 전달하면 된다. 한편 `thisAmount`는 함수 안에서 값이 바뀐다. 이 값을 반환한다.**
 
-    ```
+    ```kotlin
     private fun amountFor(
         play: Play,
         perf: Performance
