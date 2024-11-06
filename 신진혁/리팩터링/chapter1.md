@@ -184,7 +184,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 
 ### 함수 쪼개기
 
-1. **전체 동작을 각각의 부분으로 나눌 수 있는 지점을 찾는다.**
+1. **‘전체 동작’을 ‘각각의 부분’으로 나눌 수 있는 지점을 찾는다.**
     
     ```kotlin
     when (play.type) {
@@ -218,7 +218,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
         }
         ```
         
-    - **`perf`와 `play`는 값을 변경하지 않기 때문에 매개변수로 전달하면 된다. `thisAmount`는 함수 안에서 값이 바뀐다. 이 값을 반환한다.**
+    - `perf`와 `play`는 값을 변경하지 않기 때문에 매개변수로 전달하면 된다. `thisAmount`는 함수 안에서 값이 바뀐다. 이 값을 반환한다.
         
         ```kotlin
         private fun amountFor(
@@ -376,7 +376,7 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
                 ?: throw IllegalArgumentException("알 수 없는 playID: ${performance.playID}")
         }
         ...
-        val play = playFor(perf)
+        val play = **playFor(perf)**
         var thisAmount = amountFor(
             performance = perf,
             play = play,
@@ -390,17 +390,17 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
         for (perf in invoice.performances) {
             var thisAmount = amountFor(
                 performance = perf,
-                play = playFor(perf),
+                play = **playFor(perf),**
             )
         
             // 포인트 적립
             volumeCredits += maxOf(perf.audience - 30, 0)
-            if (playFor(perf).type == "comedy") {
+            if (**playFor(perf)**.type == "comedy") {
                 volumeCredits += perf.audience / 5
             }
         
             // 청구 내역 추가
-            result.append("  ${playFor(perf).name}: ${formatter.format(thisAmount / 100.0)} (${perf.audience}석)\n")
+            result.append("  ${**playFor(perf)**.name}: ${formatter.format(thisAmount / 100.0)} (${perf.audience}석)\n")
         
             totalAmount += thisAmount
         }
@@ -434,8 +434,402 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
             return result
         }
         ...
-        var thisAmount = amountFor(
-            performance = perf,
-        )
+        for (perf in invoice.performances) {
+            // 포인트 적립
+            volumeCredits += maxOf(perf.audience - 30, 0)
+            if (playFor(perf).type == "comedy") {
+                volumeCredits += perf.audience / 5
+            }
+        
+            // 청구 내역 추가
+            result.append(
+                "  ${playFor(perf).name}: ${formatter.format(**amountFor(perf)** / 100.0)} (${perf.audience}석)\n"
+            )
+        
+            totalAmount += **amountFor(perf)**
+        }
         ...
         ```
+        
+3. **1번과 2번 과정을 반복한다.**
+    
+    ```kotlin
+    var volumeCredits = 0
+    ...
+    volumeCredits += maxOf(perf.audience - 30, 0)
+    if (play.type == "comedy") {
+        volumeCredits += perf.audience / 5
+    }
+    ```
+    
+    - 함수명, 변수명 변경
+        
+        ```kotlin
+        fun statement(invoice: Invoice, plays: Map<String, Play>): String {
+            **fun playFor(**
+                performance: Performance
+            ): Play {
+                return plays[performance.playID]
+                    ?: throw IllegalArgumentException("알 수 없는 playID: ${performance.playID}")
+            **}**
+        
+            **fun amountFor(**
+                performance: Performance,
+            ): Int {
+                var result = 0
+                when (playFor(performance).type) {
+                    "tragedy" -> {
+                        result = 40000
+                        if (performance.audience > 30) {
+                            result += 1000 * (performance.audience - 30)
+                        }
+                    }
+        
+                    "comedy" -> {
+                        result = 30000
+                        if (performance.audience > 20) {
+                            result += 10000 + 500 * (performance.audience - 20)
+                        }
+                        result += 300 * performance.audience
+                    }
+        
+                    else -> throw IllegalArgumentException("알 수 없는 장르: ${playFor(performance).type}")
+                }
+                return result
+            **}**
+        
+            **fun volumeCreditsFor(performance: Performance): Int {**
+                var result = 0
+                // 포인트 적립
+                result += maxOf(performance.audience - 30, 0)
+                if (playFor(performance).type == "comedy") {
+                    result += performance.audience / 5
+                }
+                return result
+            **}**
+        
+            var totalAmount = 0
+            var volumeCredits = 0
+            val result = StringBuilder()
+        
+            // 결과 문자열 시작
+            result.append("청구 내역 (고객명: ${invoice.customer})\n")
+        
+            // 통화 형식 설정
+            val formatter = NumberFormat.getCurrencyInstance(Locale.US)
+        
+            for (perf in invoice.performances) {
+                // 포인트 적립
+                volumeCredits += volumeCreditsFor(perf)
+                // 청구 내역 추가
+                result.append(
+                    "  ${playFor(perf).name}: ${formatter.format(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+                )
+        
+                totalAmount += amountFor(perf)
+            }
+        
+            // 총액과 포인트 추가
+            result.append("총액: ${formatter.format(totalAmount / 100.0)}\n")
+            result.append("적립 포인트: ${volumeCredits}점\n")
+        
+            return result.toString()
+        }
+        ```
+        
+4. **임시 변수 제거 (나중에 문제가 될 수 있다.)**
+    
+    ```kotlin
+    // 통화 형식 설정
+    val formatter = NumberFormat.getCurrencyInstance(Locale.US)
+    
+    for (perf in invoice.performances) {
+        // 포인트 적립
+        volumeCredits += volumeCreditsFor(perf)
+        // 청구 내역 추가
+        result.append(
+            "  ${playFor(perf).name}: ${formatter.format(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+        )
+    
+        totalAmount += amountFor(perf)
+    }
+    
+    // 총액과 포인트 추가
+    result.append("총액: ${formatter.format(totalAmount / 100.0)}\n")
+    ```
+    
+    - 함수명, 변수명 변경 (이름을 잘지어야만 효과가 있다.)
+        
+        ```kotlin
+        fun statement(invoice: Invoice, plays: Map<String, Play>): String {
+        		...
+            **fun usd(number: Double): String =**
+                NumberFormat
+                    .getCurrencyInstance(Locale.US)
+                    .format(number)
+        
+            var totalAmount = 0
+            var volumeCredits = 0
+            val result = StringBuilder()
+        
+            // 결과 문자열 시작
+            result.append("청구 내역 (고객명: ${invoice.customer})\n")
+            for (perf in invoice.performances) {
+                // 포인트 적립
+                volumeCredits += volumeCreditsFor(perf)
+                // 청구 내역 추가
+                result.append(
+                    "  ${playFor(perf).name}: ${**usd(amountFor(perf) / 100.0)**} (${perf.audience}석)\n"
+                )
+        
+                totalAmount += amountFor(perf)
+            }
+        
+            // 총액과 포인트 추가
+            result.append("총액: ${**usd(totalAmount / 100.0)**}\n")
+            result.append("적립 포인트: ${volumeCredits}점\n")
+        
+            return result.toString()
+        }
+        ```
+        
+
+### 반복문 쪼개기
+
+1. **값 누적 로직을 분리**
+    
+    ```kotlin
+    for (perf in invoice.performances) {
+        // 포인트 적립
+        volumeCredits += volumeCreditsFor(perf)
+        // 청구 내역 추가
+        result.append(
+            "  ${playFor(perf).name}: ${usd(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+        )
+    
+        totalAmount += amountFor(perf)
+    }
+    
+    **for (perf in invoice.performances) {
+        // 포인트 적립
+        volumeCredits += volumeCreditsFor(perf)
+    }**
+    ```
+    
+    - 문장 슬라이드하기
+        
+        ```kotlin
+        var totalAmount = 0
+        val result = StringBuilder()
+        
+        // 결과 문자열 시작
+        result.append("청구 내역 (고객명: ${invoice.customer})\n")
+        for (perf in invoice.performances) {
+            // 청구 내역 추가
+            result.append(
+                "  ${playFor(perf).name}: ${usd(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+            )
+        
+            totalAmount += amountFor(perf)
+        }
+        
+        **var volumeCredits = 0
+        for (perf in invoice.performances) {
+            // 포인트 적립
+            volumeCredits += volumeCreditsFor(perf)
+        }**
+        
+        // 총액과 포인트 추가
+        result.append("총액: ${usd(totalAmount / 100.0)}\n")
+        result.append("적립 포인트: ${volumeCredits}점\n")
+        
+        return result.toString()
+        ```
+        
+    - 함수 추출하기, 함수명, 변수명 수정하기, 인라인하기
+        
+        ```kotlin
+        fun statement(invoice: Invoice, plays: Map<String, Play>): String {
+            fun playFor(
+                performance: Performance
+            ): Play {
+                return plays[performance.playID]
+                    ?: throw IllegalArgumentException("알 수 없는 playID: ${performance.playID}")
+            }
+        
+            fun amountFor(
+                performance: Performance,
+            ): Int {
+                var result = 0
+                when (playFor(performance).type) {
+                    "tragedy" -> {
+                        result = 40000
+                        if (performance.audience > 30) {
+                            result += 1000 * (performance.audience - 30)
+                        }
+                    }
+        
+                    "comedy" -> {
+                        result = 30000
+                        if (performance.audience > 20) {
+                            result += 10000 + 500 * (performance.audience - 20)
+                        }
+                        result += 300 * performance.audience
+                    }
+        
+                    else -> throw IllegalArgumentException("알 수 없는 장르: ${playFor(performance).type}")
+                }
+                return result
+            }
+        
+            fun volumeCreditsFor(performance: Performance): Int {
+                var result = 0
+                // 포인트 적립
+                result += maxOf(performance.audience - 30, 0)
+                if (playFor(performance).type == "comedy") {
+                    result += performance.audience / 5
+                }
+                return result
+            }
+        
+            fun usd(number: Double): String =
+                NumberFormat
+                    .getCurrencyInstance(Locale.US)
+                    .format(number)
+        
+            **fun totalVolumeCredits(): Int {
+                var result = 0
+                for (perf in invoice.performances) {
+                    // 포인트 적립
+                    result += volumeCreditsFor(perf)
+                }
+                return result
+            }**
+        
+            var totalAmount = 0
+            val result = StringBuilder()
+        
+            // 결과 문자열 시작
+            result.append("청구 내역 (고객명: ${invoice.customer})\n")
+            for (perf in invoice.performances) {
+                // 청구 내역 추가
+                result.append(
+                    "  ${playFor(perf).name}: ${usd(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+                )
+        
+                totalAmount += amountFor(perf)
+            }
+        
+            // 총액과 포인트 추가
+            result.append("총액: ${usd(totalAmount / 100.0)}\n")
+            result.append("적립 포인트: ${**totalVolumeCredits()**}점\n")
+        
+            return result.toString()
+        }
+        ```
+        
+        - **이 정도 중복은 성능에 큰 영향을 미치지 않는다.**
+            
+            → **특별한 경우가 아니라면 일단 무시하라**
+            
+2. **1번 과정을 반복한다.**
+    
+    ```kotlin
+    for (perf in invoice.performances) {
+        // 청구 내역 추가
+        result.append(
+            "  ${playFor(perf).name}: ${usd(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+        )
+    }
+    for (perf in invoice.performances) {
+        totalAmount += amountFor(perf)
+    }
+    ```
+    
+    - 문장 슬라이드, 함수 추출하기, 함수명, 변수명 수정하기, 인라인하기
+
+```kotlin
+**fun statement(invoice: Invoice, plays: Map<String, Play>): String {**
+    fun playFor(
+        performance: Performance
+    ): Play {
+        return plays[performance.playID]
+            ?: throw IllegalArgumentException("알 수 없는 playID: ${performance.playID}")
+    }
+
+    fun amountFor(
+        performance: Performance,
+    ): Int {
+        var result = 0
+        when (playFor(performance).type) {
+            "tragedy" -> {
+                result = 40000
+                if (performance.audience > 30) {
+                    result += 1000 * (performance.audience - 30)
+                }
+            }
+
+            "comedy" -> {
+                result = 30000
+                if (performance.audience > 20) {
+                    result += 10000 + 500 * (performance.audience - 20)
+                }
+                result += 300 * performance.audience
+            }
+
+            else -> throw IllegalArgumentException("알 수 없는 장르: ${playFor(performance).type}")
+        }
+        return result
+    }
+
+    fun volumeCreditsFor(performance: Performance): Int {
+        var result = 0
+        // 포인트 적립
+        result += maxOf(performance.audience - 30, 0)
+        if (playFor(performance).type == "comedy") {
+            result += performance.audience / 5
+        }
+        return result
+    }
+
+    fun usd(number: Double): String =
+        NumberFormat
+            .getCurrencyInstance(Locale.US)
+            .format(number)
+
+    fun totalVolumeCredits(): Int {
+        var result = 0
+        for (perf in invoice.performances) {
+            // 포인트 적립
+            result += volumeCreditsFor(perf)
+        }
+        return result
+    }
+
+    fun totalAmount(): Int {
+        var result = 0
+        for (perf in invoice.performances) {
+            result += amountFor(perf)
+        }
+        return result
+    }
+
+    **val result = StringBuilder()
+    // 결과 문자열 시작
+    result.append("청구 내역 (고객명: ${invoice.customer})\n")
+    for (perf in invoice.performances) {
+        // 청구 내역 추가
+        result.append(
+            "  ${playFor(perf).name}: ${usd(amountFor(perf) / 100.0)} (${perf.audience}석)\n"
+        )
+    }
+
+    // 총액과 포인트 추가
+    result.append("총액: ${usd(totalAmount() / 100.0)}\n")
+    result.append("적립 포인트: ${totalVolumeCredits()}점\n")
+
+    return result.toString()**
+**}**
+```
+
+### 중간 점검: 난무하는 중첩 함수 (다음 단계)
