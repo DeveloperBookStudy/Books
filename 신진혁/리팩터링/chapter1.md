@@ -832,4 +832,3 @@ fun statement(invoice: Invoice, plays: Map<String, Play>): String {
 **}**
 ```
 
-### 중간 점검: 난무하는 중첩 함수 (다음 단계)
