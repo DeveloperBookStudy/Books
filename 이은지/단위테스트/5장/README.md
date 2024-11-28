@@ -68,11 +68,6 @@
   >  스텁과의 상호 작용을 검증하는 것은 취약한 테스트를 야기하는 일반적인 안티 패턴이다.
 
   - SUT에서 스텁으로의 호출은 SUT가 생성하는 최종 결과가 아니다. 이러한 호출은 최종 결과를 산출하기 위한 수단일 뿐이다. 즉, 스텁은 SUT가 출력을 생성하도록 입력을 제공한다.
-
-  - 4장에서 살펴봤듯이, 테스트에서 거짓 양성을 피하고 리팩터링 내성을 향상시키는 방법은 구현 세부 사항이 아니라 최종 결과(이상적으로는 비개발자들에게 의미가 있어야 함)를 검증하는 것이였다.
-    - `mock.Verify(x => x.SendGreetingsEmail("user@email.com"))`: 인사 메일을 보내는 것은 비즈니스 담당자가 시스템에 하길 원하는 결과에 부합한다.
-
-    - `GetNumberOfUsers()`: 해당 메서드를 호출하는 것은 보고서 작성에 필요한 데이터를 수집하는 방법에 대한 내부 구현 세부 사항이지 전혀 결과가 아니다.
   
   - 스텁으로 상호 작용 검증(깨지기 쉬운 테스트의 예)
     ```cs
@@ -80,8 +75,7 @@
     public void Creating_a_report()
     {
       var stub = new Mock<IDatabase>();
-      stub.Setup(x => x.GetNumberOfUsers())
-          .Returns(10);
+      stub.Setup(x => x.GetNumberOfUsers()).Returns(10);
       var sut = new Controller(stub.Object);
 
       Report report = sut.CreateReport();
@@ -92,3 +86,40 @@
         Times.Once); // 스텁으로 상호 작용 검증(과잉 명세)
     }
     ```
+  - 4장에서 살펴봤듯이, 테스트에서 거짓 양성을 피하고 리팩터링 내성을 향상시키는 방법은 구현 세부 사항이 아니라 최종 결과(이상적으로는 비개발자들에게 의미가 있어야 함)를 검증하는 것이였다.  
+  `mock.Verify(x => x.SendGreetingsEmail("user@email.com"))`
+    - 인사 메일을 보내는 것은 비즈니스 담당자가 시스템에 하길 원하는 결과에 부합한다.
+
+  - `GetNumberOfUsers()`
+    - 해당 메서드를 호출하는 것은 보고서 작성에 필요한 데이터를 수집하는 방법에 대한 내부 구현 세부 사항이지 전혀 결과가 아니다.
+
+- 목과 스텁 함께 쓰기
+  > 때로는 목과 스텁의 특성을 모두 나타내는 테스트 대역을 만들 필요가 있다.
+
+  - 목이자 스텁인 `storeMock`
+  ```cs
+  [Fact]
+  public void Purchase_fails_when_enough_inventory()
+  {
+    var storeMock = new Mock<IStore>();
+    storeMock
+        .Setup(x => x.HasEnoughInventory(Product.Shampoo, 5))
+        .Returns(false); // 준비된 응답을 설정
+    var sut = new Customer();
+
+    bool success = sut.Purchase(storeMock.Object, Product.Shampoo, 5);
+    Assert.False(success);
+    storeMock.Verify(
+      x => x.RemoveInventory(Product.Shampoo, 5),
+      Times.Never); // SUT에서 수행한 호출을 검사
+  }
+  ```
+  - 준비된 응답을 반환하는 `storeMock`
+    - `HasEnoughInventory()`
+
+  - SUT에서 수행한 메서드 호출을 검증하는 `storeMock`
+    - `RemoveInventory()`
+    - 스텁과의 상호 작용을 검증하는 것이 아니다!
+
+
+    
